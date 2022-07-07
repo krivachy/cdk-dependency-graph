@@ -1,12 +1,54 @@
 {
   "name": "cdk-dependency-graph",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "type": "module",
+  "bin": {
+    "cdk-dependency-graph": "./dist/cli.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "author": {
+    "name": "Akos Krivachy",
+    "url": "https://github.com/krivachy/cdk-dependency-graph"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krivachy/cdk-dependency-graph.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "aws",
+    "cdk",
+    "dependency",
+    "graph",
+    "performance"
+  ],
+  "scripts": {
+    "dev": "ts-node-transpile-only ./lib/cli.ts",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc && chmod +x ./dist/cli.js",
+    "clean": "rimraf ./dist"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-cloudformation": "3.124.0",
+    "chalk": "5.0.1",
+    "luxon": "2.4.0",
+    "toposort": "2.0.2",
+    "true-myth": "6.0.0",
+    "yargs": "17.5.1",
+    "zod": "3.17.3"
+  },
+  "devDependencies": {
+    "@types/luxon": "2.3.2",
+    "@types/node": "16.11.43",
+    "@types/toposort": "2.0.3",
+    "@types/yargs": "17.0.10",
+    "prettier": "2.7.1",
+    "rimraf": "3.0.2",
+    "ts-node": "10.8.2",
+    "typescript": "4.7.4",
+    "vitest": "0.17.0"
+  }
 }
