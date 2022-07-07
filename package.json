@@ -28,11 +28,13 @@
     "dev": "ts-node-transpile-only ./lib/cli.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc && chmod +x ./dist/cli.js",
-    "clean": "rimraf ./dist"
+    "clean": "rimraf ./dist",
+    "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
   "dependencies": {
     "@aws-sdk/client-cloudformation": "3.124.0",
+    "assert-ts": "0.3.4",
     "chalk": "5.0.1",
     "luxon": "2.4.0",
     "toposort": "2.0.2",

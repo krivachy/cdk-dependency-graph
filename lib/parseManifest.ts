@@ -5,15 +5,13 @@ import { Options } from './options.js';
 
 export function parseManifest(input: unknown, options: Options): Result<Manifest, ZodError> {
   const result = Manifest.safeParse(input);
-  if (result.success === true) {
-    if (options.prefix) {
+  if (result.success) {
+    const { prefix } = options;
+    if (prefix) {
       const strippedManifest: Manifest = {
         artifacts: Object.fromEntries(
           Object.entries(result.data.artifacts).map(([name, artifact]) => {
-            return [
-              stripPrefix(name, options.prefix),
-              stripPrefixFromArtifact(artifact, options.prefix),
-            ];
+            return [stripPrefix(name, prefix), stripPrefixFromArtifact(artifact, prefix)];
           })
         ),
       };

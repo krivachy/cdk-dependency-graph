@@ -11,7 +11,7 @@ export type StackDependencies = BasicStackDependency & {
 
 function toStackDependencies(manifest: Manifest): BasicStackDependency[] {
   return Object.entries(manifest.artifacts)
-    .filter(([name, details]) => details.type === 'aws:cloudformation:stack')
+    .filter(([_name, details]) => details.type === 'aws:cloudformation:stack')
     .map(([name, details]) => {
       return {
         name,
@@ -31,7 +31,7 @@ function sortStackDependencies(stackDependencies: BasicStackDependency[]): Basic
   });
   const sorted = toposort.array(nodes, edges);
   sorted.reverse();
-  return sorted.map((name) => stackDependencies.find((s) => s.name === name));
+  return sorted.map(resolveDependency(stackDependencies));
 }
 
 function addTransitiveStackDependencies(
@@ -40,7 +40,7 @@ function addTransitiveStackDependencies(
   return stackDependencies.map((sd) => {
     const dependencyNames = [...sd.dependencyNames];
     sd.dependencyNames.forEach((depStackName) => {
-      const dependencies = stackDependencies.find((s) => s.name === depStackName).dependencyNames;
+      const dependencies = resolveDependency(stackDependencies)(depStackName).dependencyNames;
       dependencies.forEach((d) => {
         if (dependencyNames.indexOf(d) === -1) {
           dependencyNames.push(d);
@@ -58,9 +58,21 @@ function enrichStackDependencies(stackDependencies: BasicStackDependency[]): Sta
   return stackDependencies.map((s) => {
     return {
       ...s,
-      dependencies: s.dependencyNames.map((name) => stackDependencies.find((s) => s.name === name)),
+      dependencies: s.dependencyNames.map(resolveDependency(stackDependencies)),
     };
   });
+}
+
+function resolveDependency(
+  stackDependencies: BasicStackDependency[]
+): (name: string) => BasicStackDependency {
+  return (name: string) => {
+    const value = stackDependencies.find((s) => s.name === name);
+    if (!value) {
+      throw new Error(`Invalid state, stack not found: ${name}`);
+    }
+    return value;
+  };
 }
 
 export function buildDependencyGraph(manifest: Manifest): StackDependencies[] {

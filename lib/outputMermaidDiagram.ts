@@ -29,7 +29,7 @@ import { CriticalPath } from './findCriticalPath.js';
 export function outputMermaidDiagram(
   awsTimings: AwsStackTiming[],
   criticalPath: CriticalPath,
-  options: Options
+  output: string
 ): void {
   const lines: string[] = [];
   const line = (s: string) => lines.push(s);
@@ -54,7 +54,7 @@ export function outputMermaidDiagram(
   lines.push('</div>');
   lines.push('</body>');
   lines.push('</html>');
-  fs.writeFileSync(options.output, lines.join('\n'));
+  fs.writeFileSync(output, lines.join('\n'));
 }
 
 function onTheCriticalPath(awsTiming: AwsStackTiming, criticalPath: CriticalPath): boolean {

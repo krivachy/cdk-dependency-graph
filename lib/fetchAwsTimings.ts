@@ -1,6 +1,10 @@
 import { DateTime, Duration, Interval } from 'luxon';
 import { BasicStackDependency, StackDependencies } from './buildDependencyGraph.js';
-import { CloudFormationClient, DescribeStackEventsCommand } from '@aws-sdk/client-cloudformation';
+import {
+  CloudFormationClient,
+  DescribeStackEventsCommand,
+  DescribeStackEventsCommandOutput,
+} from '@aws-sdk/client-cloudformation';
 import { Options } from './options.js';
 import { StackEvent } from '@aws-sdk/client-cloudformation/dist-types/models/models_0.js';
 import chalk from 'chalk';
@@ -15,6 +19,7 @@ export type AwsStackTiming = Omit<StackDependencies, 'dependencies'> & {
   duration: Duration;
   dependencies: BasicStackDependencyWithTiming[];
 };
+import { assert } from 'assert-ts';
 
 export async function fetchAwsTimings(
   stacks: StackDependencies[],
@@ -28,12 +33,18 @@ export async function fetchAwsTimings(
     stackSummaries.push(await getStackEventSummary(cfnClient, stack, options));
   }
   return stackSummaries.map((sum) => {
+    // TODO: stricten StackEvent type so no assert is needed
+    assert(!!sum.firstEvent.Timestamp);
+    assert(!!sum.lastEvent.Timestamp);
     const startTime = DateTime.fromJSDate(sum.firstEvent.Timestamp);
     const endTime = DateTime.fromJSDate(sum.lastEvent.Timestamp);
     return {
       name: sum.name,
       dependencies: sum.dependencies.map((s) => {
         const depSum = stackSummaries.find((a) => a.name === s.name);
+        assert(!!depSum);
+        assert(!!depSum.firstEvent.Timestamp);
+        assert(!!depSum.lastEvent.Timestamp);
         const depStartTime = DateTime.fromJSDate(depSum.firstEvent.Timestamp);
         const depEndTime = DateTime.fromJSDate(depSum.lastEvent.Timestamp);
         return {
@@ -71,7 +82,7 @@ async function getStackEventSummary(
   let page = 1;
   do {
     console.error(chalk.gray(`Fetching stack events for: ${stackName} (page ${page})`));
-    const cfnResponse = await cfnClient.send(
+    const cfnResponse: DescribeStackEventsCommandOutput = await cfnClient.send(
       new DescribeStackEventsCommand({
         StackName: stackName,
         NextToken: nextToken,
@@ -80,7 +91,7 @@ async function getStackEventSummary(
     nextToken = cfnResponse.NextToken;
     page++;
     if (type === undefined) {
-      if (cfnResponse.StackEvents.length === 0) {
+      if (!cfnResponse.StackEvents || cfnResponse.StackEvents.length === 0) {
         throw new Error(`No stack events returned for: ${stackName}`);
       } else {
         if (isLastEvent(cfnResponse.StackEvents[0], stackName)) {
@@ -93,7 +104,11 @@ async function getStackEventSummary(
         }
       }
     }
-    firstEvent = cfnResponse.StackEvents.find((se) => isFirstEvent(se, type, stackName));
+    const determinedType = type;
+    if (!determinedType) {
+      throw new Error('Could not determine type');
+    }
+    firstEvent = cfnResponse.StackEvents?.find((se) => isFirstEvent(se, determinedType, stackName));
   } while (nextToken !== undefined && firstEvent === undefined);
   if (!firstEvent || !lastEvent || !type) {
     throw new Error(

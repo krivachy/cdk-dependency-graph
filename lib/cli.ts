@@ -107,7 +107,7 @@ if (options.timings) {
     const criticalPath = findCriticalPath(awsTimings);
     printCriticalPath(criticalPath);
     if (options.output) {
-      outputMermaidDiagram(awsTimings, criticalPath, options);
+      outputMermaidDiagram(awsTimings, criticalPath, options.output);
     }
   });
 }

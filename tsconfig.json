@@ -5,11 +5,13 @@
     "declaration": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "strict": true
   },
   "include": ["lib"],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "dist"
   ],
   "ts-node": {
     "esm": true
