@@ -27,7 +27,7 @@
   "scripts": {
     "dev": "ts-node-transpile-only ./lib/cli.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc && chmod +x ./dist/cli.js",
+    "build": "pnpm run clean && tsc && chmod +x ./dist/cli.js",
     "clean": "rimraf ./dist",
     "typecheck": "tsc --noEmit"
   },
