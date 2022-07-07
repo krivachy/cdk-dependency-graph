@@ -2,8 +2,8 @@
   "compilerOptions": {
     "module": "nodenext",
     "target": "es5",
-    "declaration": true,
-    "sourceMap": true,
+    "declaration": false,
+    "sourceMap": false,
     "outDir": "./dist",
     "esModuleInterop": true,
     "strict": true
