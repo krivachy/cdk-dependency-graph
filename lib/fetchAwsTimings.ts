@@ -1,36 +1,26 @@
 import { DateTime, Duration, Interval } from 'luxon';
-import { BasicStackDependency, StackDependencies } from './buildDependencyGraph.js';
 import {
-  CloudFormationClient,
   DescribeStackEventsCommand,
   DescribeStackEventsCommandOutput,
 } from '@aws-sdk/client-cloudformation';
-import { Options } from './options.js';
 import { StackEvent } from '@aws-sdk/client-cloudformation/dist-types/models/models_0.js';
-import chalk from 'chalk';
-export type BasicStackDependencyWithTiming = BasicStackDependency & {
-  startTime: DateTime;
-  endTime: DateTime;
-  duration: Duration;
-};
-export type AwsStackTiming = Omit<StackDependencies, 'dependencies'> & {
-  startTime: DateTime;
-  endTime: DateTime;
-  duration: Duration;
-  dependencies: BasicStackDependencyWithTiming[];
-};
 import { assert } from 'assert-ts';
+import { Context } from './utils/context.js';
+
+export type AwsStackTiming = {
+  name: string;
+  startTime: DateTime;
+  endTime: DateTime;
+  duration: Duration;
+};
 
 export async function fetchAwsTimings(
-  stacks: StackDependencies[],
-  options: Options
+  ctx: Context,
+  stackNames: string[]
 ): Promise<AwsStackTiming[]> {
-  const cfnClient = new CloudFormationClient({
-    region: options.region,
-  });
   const stackSummaries: StackEventSummary[] = [];
-  for (const stack of stacks) {
-    stackSummaries.push(await getStackEventSummary(cfnClient, stack, options));
+  for (const stackName of stackNames) {
+    stackSummaries.push(await getStackEventSummary(ctx, stackName));
   }
   return stackSummaries.map((sum) => {
     // TODO: stricten StackEvent type so no assert is needed
@@ -39,23 +29,7 @@ export async function fetchAwsTimings(
     const startTime = DateTime.fromJSDate(sum.firstEvent.Timestamp);
     const endTime = DateTime.fromJSDate(sum.lastEvent.Timestamp);
     return {
-      name: sum.name,
-      dependencies: sum.dependencies.map((s) => {
-        const depSum = stackSummaries.find((a) => a.name === s.name);
-        assert(!!depSum);
-        assert(!!depSum.firstEvent.Timestamp);
-        assert(!!depSum.lastEvent.Timestamp);
-        const depStartTime = DateTime.fromJSDate(depSum.firstEvent.Timestamp);
-        const depEndTime = DateTime.fromJSDate(depSum.lastEvent.Timestamp);
-        return {
-          name: s.name,
-          dependencyNames: s.dependencyNames,
-          startTime: depStartTime,
-          endTime: depEndTime,
-          duration: Interval.fromDateTimes(depStartTime, depEndTime).toDuration(),
-        };
-      }),
-      dependencyNames: sum.dependencyNames,
+      name: sum.stackName,
       startTime,
       endTime,
       duration: Interval.fromDateTimes(startTime, endTime).toDuration(),
@@ -63,25 +37,22 @@ export async function fetchAwsTimings(
   });
 }
 
-type StackEventSummary = StackDependencies & {
+type StackEventSummary = {
+  stackName: string;
   type: 'CREATE' | 'UPDATE';
   firstEvent: StackEvent;
   lastEvent: StackEvent;
 };
 
-async function getStackEventSummary(
-  cfnClient: CloudFormationClient,
-  stack: StackDependencies,
-  options: Options
-): Promise<StackEventSummary> {
-  const stackName = options.prefix ? `${options.prefix}${stack.name}` : stack.name;
+async function getStackEventSummary(ctx: Context, stackName: string): Promise<StackEventSummary> {
+  const { cfnClient } = ctx;
   let type: 'CREATE' | 'UPDATE' | undefined = undefined;
   let firstEvent: StackEvent | undefined = undefined;
   let lastEvent: StackEvent | undefined = undefined;
   let nextToken: string | undefined = undefined;
   let page = 1;
   do {
-    console.error(chalk.gray(`Fetching stack events for: ${stackName} (page ${page})`));
+    ctx.log.verbose(`Fetching stack events for: ${stackName} (page ${page})`);
     const cfnResponse: DescribeStackEventsCommandOutput = await cfnClient.send(
       new DescribeStackEventsCommand({
         StackName: stackName,
@@ -92,13 +63,13 @@ async function getStackEventSummary(
     page++;
     if (type === undefined) {
       if (!cfnResponse.StackEvents || cfnResponse.StackEvents.length === 0) {
-        throw new Error(`No stack events returned for: ${stackName}`);
+        ctx.log.error(`No stack events returned for: ${stackName}`);
       } else {
         if (isLastEvent(cfnResponse.StackEvents[0], stackName)) {
           lastEvent = cfnResponse.StackEvents[0];
           type = lastEvent.ResourceStatus === 'CREATE_COMPLETE' ? 'CREATE' : 'UPDATE';
         } else {
-          throw new Error(
+          ctx.log.error(
             `Stack not in a successful completed state of CREATE_COMPLETE or UPDATE_COMPLETE: ${stackName}`
           );
         }
@@ -111,7 +82,7 @@ async function getStackEventSummary(
     firstEvent = cfnResponse.StackEvents?.find((se) => isFirstEvent(se, determinedType, stackName));
   } while (nextToken !== undefined && firstEvent === undefined);
   if (!firstEvent || !lastEvent || !type) {
-    throw new Error(
+    ctx.log.error(
       `Events not found for stack: ${stackName}: ${JSON.stringify(
         { firstEvent, lastEvent, type },
         null,
@@ -120,7 +91,7 @@ async function getStackEventSummary(
     );
   }
   return {
-    ...stack,
+    stackName,
     type,
     lastEvent,
     firstEvent,

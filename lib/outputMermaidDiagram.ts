@@ -1,35 +1,16 @@
 import { AwsStackTiming } from './fetchAwsTimings.js';
-import { Options } from './options.js';
 import fs from 'node:fs';
 import { CriticalPath } from './findCriticalPath.js';
+import { StackDependencies } from './buildDependencyGraph.js';
+import { stripPrefix } from './utils/stripPrefix.js';
+import { Context } from './utils/context.js';
 
-// <html>
-//     <body>
-//         <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-//         <script>mermaid.initialize({ startOnLoad: true });</script>
-//
-//         Here is one mermaid diagram:
-//         <div class="mermaid">
-//             graph TD
-//             A[Client] --> B[Load Balancer]
-//             B --> C[Server1]
-//             B --> D[Server2]
-//         </div>
-//
-//         And here is another:
-//         <div class="mermaid">
-//             graph TD
-//             A[Client] -->|tcp_123| B
-//             B(Load Balancer)
-//             B -->|tcp_456| C[Server1]
-//             B -->|tcp_456| D[Server2]
-//         </div>
-//     </body>
-// </html>
 export function outputMermaidDiagram(
+  ctx: Context,
+  output: string,
   awsTimings: AwsStackTiming[],
-  criticalPath: CriticalPath,
-  output: string
+  stackDependencies: StackDependencies[] | null,
+  criticalPath: CriticalPath | null
 ): void {
   const lines: string[] = [];
   const line = (s: string) => lines.push(s);
@@ -43,12 +24,15 @@ export function outputMermaidDiagram(
   line('dateFormat  X');
   line('axisFormat  %Y-%m-%d %H:%M:%S');
   awsTimings.forEach((awsTiming) => {
+    const dependencies = findAllDependencies(awsTiming, stackDependencies);
     line(
-      `${awsTiming.name}:${
+      `${stripPrefix(ctx, awsTiming.name)}:${
         onTheCriticalPath(awsTiming, criticalPath) ? 'crit,' : ''
-      } after ${awsTiming.dependencyNames.join(
-        ' '
-      )}, ${awsTiming.startTime.toSeconds()}, ${awsTiming.endTime.toSeconds()}`
+      } ${
+        dependencies.length > 0
+          ? `after ${dependencies.map((name) => stripPrefix(ctx, name)).join(' ')}`
+          : ''
+      }, ${awsTiming.startTime.toSeconds()}, ${awsTiming.endTime.toSeconds()}`
     );
   });
   lines.push('</div>');
@@ -57,9 +41,22 @@ export function outputMermaidDiagram(
   fs.writeFileSync(output, lines.join('\n'));
 }
 
-function onTheCriticalPath(awsTiming: AwsStackTiming, criticalPath: CriticalPath): boolean {
+function onTheCriticalPath(awsTiming: AwsStackTiming, criticalPath: CriticalPath | null): boolean {
+  if (!criticalPath) {
+    return false;
+  }
   return (
     criticalPath.stack.name === awsTiming.name ||
-    criticalPath.stack.dependencyNames.some((dep) => dep === awsTiming.name)
+    criticalPath.stackDependencies.some((dep) => dep.name === awsTiming.name)
   );
+}
+
+function findAllDependencies(
+  awsTiming: AwsStackTiming,
+  stackDependencies: StackDependencies[] | null
+): string[] {
+  if (!stackDependencies) {
+    return [];
+  }
+  return stackDependencies.find((dep) => dep.name === awsTiming.name)?.dependencyNames ?? [];
 }

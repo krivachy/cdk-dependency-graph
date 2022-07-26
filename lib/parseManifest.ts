@@ -1,35 +1,11 @@
-import { Artifact, Manifest } from './types.js';
-import { ZodError } from 'zod';
-import { Result } from 'true-myth';
-import { Options } from './options.js';
+import { Manifest } from './utils/types.js';
+import { Context } from './utils/context.js';
 
-export function parseManifest(input: unknown, options: Options): Result<Manifest, ZodError> {
+export function parseManifest(ctx: Context, input: unknown): Manifest {
   const result = Manifest.safeParse(input);
   if (result.success) {
-    const { prefix } = options;
-    if (prefix) {
-      const strippedManifest: Manifest = {
-        artifacts: Object.fromEntries(
-          Object.entries(result.data.artifacts).map(([name, artifact]) => {
-            return [stripPrefix(name, prefix), stripPrefixFromArtifact(artifact, prefix)];
-          })
-        ),
-      };
-      return Result.ok(strippedManifest);
-    }
-    return Result.ok(result.data);
+    return result.data;
   } else {
-    return Result.err(result.error);
+    ctx.log.error(`Failed to parse manifest.json:\n${JSON.stringify(result.error, null, 2)}`);
   }
-}
-
-export function stripPrefixFromArtifact(artifact: Artifact, prefix: string): Artifact {
-  return {
-    type: artifact.type,
-    dependencies: artifact.dependencies.map((dep) => stripPrefix(dep, prefix)),
-  };
-}
-
-export function stripPrefix(value: string, prefix: string): string {
-  return value.startsWith(prefix) ? value.slice(prefix.length) : value;
 }

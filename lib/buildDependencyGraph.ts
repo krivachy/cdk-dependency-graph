@@ -1,4 +1,4 @@
-import { Manifest } from './types.js';
+import { Manifest } from './utils/types.js';
 import toposort from 'toposort';
 
 export type BasicStackDependency = {

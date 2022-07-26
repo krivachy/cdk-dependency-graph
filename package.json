@@ -6,6 +6,10 @@
   "bin": {
     "cdk-dependency-graph": "./dist/cli.js"
   },
+  "engines": {
+    "node": "16.15.x",
+    "pnpm": "7.x"
+  },
   "author": {
     "name": "Akos Krivachy",
     "url": "https://github.com/krivachy/cdk-dependency-graph"
@@ -26,21 +30,21 @@
   ],
   "scripts": {
     "dev": "ts-node-transpile-only ./lib/cli.ts",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "pnpm run clean && tsc && chmod +x ./dist/cli.js",
+    "build": "pnpm run clean && tsc",
     "clean": "rimraf ./dist",
     "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
   "dependencies": {
-    "@aws-sdk/client-cloudformation": "3.124.0",
+    "@aws-sdk/client-cloudformation": "3.137.0",
+    "@aws-sdk/credential-providers": "3.137.0",
     "assert-ts": "0.3.4",
     "chalk": "5.0.1",
+    "commander": "9.4.0",
     "luxon": "2.4.0",
     "toposort": "2.0.2",
     "true-myth": "6.0.0",
-    "yargs": "17.5.1",
-    "zod": "3.17.3"
+    "zod": "3.17.10"
   },
   "devDependencies": {
     "@types/luxon": "2.3.2",

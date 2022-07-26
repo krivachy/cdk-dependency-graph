@@ -1,28 +1,40 @@
 import { Duration, Interval } from 'luxon';
 import { AwsStackTiming } from './fetchAwsTimings.js';
+import { StackDependencies } from './buildDependencyGraph.js';
+import { Context } from './utils/context.js';
 
 export type CriticalPath = {
   totalDuration: Duration;
   stack: AwsStackTiming;
+  stackDependencies: AwsStackTiming[];
 };
 
-export function findCriticalPath(awsTimings: AwsStackTiming[]): CriticalPath {
+export function findCriticalPath(
+  ctx: Context,
+  awsTimings: AwsStackTiming[],
+  stackDependencies: StackDependencies[]
+): CriticalPath {
   const criticalPath = awsTimings.reduce((acc, next) => {
-    // const accSum = acc.duration.plus(
-    //   acc.dependencies.reduce((a, b) => a.plus(b.duration), Duration.fromMillis(0))
-    // );
-    // const nextSum = next.duration.plus(
-    //   next.dependencies.reduce((a, b) => a.plus(b.duration), Duration.fromMillis(0))
-    // );
-    // return nextSum.as('millisecond') > accSum.as('millisecond') ? next : acc;
     return next.endTime > acc.endTime ? next : acc;
   });
+  const criticalStackDependency = stackDependencies.find((s) => s.name === criticalPath.name);
+  if (!criticalStackDependency) {
+    ctx.log.error(`Not found stack dependency for: ${criticalPath.name}`);
+  }
+  const dependencyTimings = criticalStackDependency.dependencyNames.map((depName) => {
+    const depTiming = awsTimings.find((t) => t.name === depName);
+    if (!depTiming) {
+      ctx.log.error(`AWS stack timing not found for: ${depName}`);
+    }
+    return depTiming;
+  });
   const total = Interval.fromDateTimes(
-    criticalPath.dependencies.reduce((a, b) => (a.startTime < b.startTime ? a : b)).startTime,
+    dependencyTimings.reduce((a, b) => (a.startTime < b.startTime ? a : b)).startTime,
     criticalPath.endTime
   ).toDuration();
   return {
     stack: criticalPath,
+    stackDependencies: dependencyTimings,
     totalDuration: total,
   };
 }
