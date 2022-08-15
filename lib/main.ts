@@ -8,12 +8,18 @@ import { fetchAwsTimings } from './fetchAwsTimings.js';
 import { outputMermaidDiagram } from './outputMermaidDiagram.js';
 import { CriticalPath, findCriticalPath } from './findCriticalPath.js';
 import { printCriticalPath } from './printCriticalPath.js';
+import { verifyAwsCredentials } from './verifyAwsCredentials.js';
 
 export async function main(ctx: Context) {
   const { options } = ctx;
   if (!options.cdkOut && !options.cloudformationTimings) {
     ctx.log.error(`Please provide one of --cdkOut or --cloudformationTimings to do something`);
   }
+  if (options.cloudformationTimings) {
+    // First verify that we have credentials
+    await verifyAwsCredentials(ctx);
+  }
+
   let stackDependencies: StackDependencies[] | null = null;
   if (options.cdkOut) {
     validateIfDirExists(ctx, 'cdkOut', options.cdkOut);

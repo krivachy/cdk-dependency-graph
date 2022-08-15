@@ -2,8 +2,8 @@ import { DateTime, Duration, Interval } from 'luxon';
 import {
   DescribeStackEventsCommand,
   DescribeStackEventsCommandOutput,
+  StackEvent,
 } from '@aws-sdk/client-cloudformation';
-import { StackEvent } from '@aws-sdk/client-cloudformation/dist-types/models/models_0.js';
 import { assert } from 'assert-ts';
 import { Context } from './utils/context.js';
 
@@ -39,14 +39,12 @@ export async function fetchAwsTimings(
 
 type StackEventSummary = {
   stackName: string;
-  type: 'CREATE' | 'UPDATE';
   firstEvent: StackEvent;
   lastEvent: StackEvent;
 };
 
 async function getStackEventSummary(ctx: Context, stackName: string): Promise<StackEventSummary> {
   const { cfnClient } = ctx;
-  let type: 'CREATE' | 'UPDATE' | undefined = undefined;
   let firstEvent: StackEvent | undefined = undefined;
   let lastEvent: StackEvent | undefined = undefined;
   let nextToken: string | undefined = undefined;
@@ -61,30 +59,25 @@ async function getStackEventSummary(ctx: Context, stackName: string): Promise<St
     );
     nextToken = cfnResponse.NextToken;
     page++;
-    if (type === undefined) {
+    if (lastEvent === undefined) {
       if (!cfnResponse.StackEvents || cfnResponse.StackEvents.length === 0) {
         ctx.log.error(`No stack events returned for: ${stackName}`);
       } else {
         if (isLastEvent(cfnResponse.StackEvents[0], stackName)) {
           lastEvent = cfnResponse.StackEvents[0];
-          type = lastEvent.ResourceStatus === 'CREATE_COMPLETE' ? 'CREATE' : 'UPDATE';
         } else {
           ctx.log.error(
-            `Stack not in a successful completed state of CREATE_COMPLETE or UPDATE_COMPLETE: ${stackName}`
+            `Stack not in a successful completed state of CREATE_COMPLETE: ${stackName}`
           );
         }
       }
     }
-    const determinedType = type;
-    if (!determinedType) {
-      throw new Error('Could not determine type');
-    }
-    firstEvent = cfnResponse.StackEvents?.find((se) => isFirstEvent(se, determinedType, stackName));
+    firstEvent = cfnResponse.StackEvents?.find((se) => isFirstEvent(se, stackName));
   } while (nextToken !== undefined && firstEvent === undefined);
-  if (!firstEvent || !lastEvent || !type) {
+  if (!firstEvent || !lastEvent) {
     ctx.log.error(
       `Events not found for stack: ${stackName}: ${JSON.stringify(
-        { firstEvent, lastEvent, type },
+        { firstEvent, lastEvent },
         null,
         2
       )}`
@@ -92,25 +85,19 @@ async function getStackEventSummary(ctx: Context, stackName: string): Promise<St
   }
   return {
     stackName,
-    type,
     lastEvent,
     firstEvent,
   };
 }
 
-function isFirstEvent(se: StackEvent, type: StackEventSummary['type'], stackName: string): boolean {
+function isFirstEvent(se: StackEvent, stackName: string): boolean {
   return (
     se.LogicalResourceId === stackName &&
     se.ResourceStatusReason === 'User Initiated' &&
-    (type === 'CREATE'
-      ? se.ResourceStatus === 'CREATE_IN_PROGRESS'
-      : se.ResourceStatus === 'UPDATE_IN_PROGRESS')
+    se.ResourceStatus === 'CREATE_IN_PROGRESS'
   );
 }
 
 function isLastEvent(se: StackEvent, stackName: string): boolean {
-  return (
-    se.LogicalResourceId === stackName &&
-    (se.ResourceStatus === 'CREATE_COMPLETE' || se.ResourceStatus === 'UPDATE_COMPLETE')
-  );
+  return se.LogicalResourceId === stackName && se.ResourceStatus === 'CREATE_COMPLETE';
 }

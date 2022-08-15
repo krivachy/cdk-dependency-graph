@@ -22,7 +22,7 @@ export function createContext(options: Options): Context {
         console.log(chalk.bold(message));
       },
       error(message: string): never {
-        console.info(chalk.red(`ERROR: ${message}`));
+        console.info(chalk.bgRed.whiteBright('ERROR:') + chalk.redBright(` ${message}`));
         process.exit(1);
       },
       verbose(message: string) {
@@ -39,6 +39,7 @@ export function createContext(options: Options): Context {
           })
         : undefined,
       region: options.region ?? undefined,
+      maxAttempts: 10,
     }),
   };
 }

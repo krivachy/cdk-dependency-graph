@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { Options } from './utils/options.js';
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { Context, createContext } from './utils/context.js';
 import { readJsonFile, validateIfFileExists } from './utils/fileUtils.js';
 import { main } from './main.js';
@@ -29,7 +29,7 @@ program
     '--cdkOut <cdkOut>',
     "path to cdk.out directory, if sstJson provided then it will default to your SST app's cdk.ou"
   )
-  .option('--cloudformationTimings', 'to fetch timings from AWS Cloudformation')
+  .option('-t, --cloudformationTimings', 'to fetch timings from AWS Cloudformation')
   .option('--profile <profile>', 'AWS profile, defaults to $AWS_PROFILE', process.env.AWS_PROFILE)
   .option(
     '-r, --region <region>',
@@ -48,31 +48,40 @@ program
     // Run the main program
     await main(enhancedCtx);
   })
+  .allowExcessArguments(false)
   .showHelpAfterError(true);
 
 program.parse();
 
 // Progressively enhance CLI inputs
 function validateOptions(ctx: Context): Options {
-  const options = ctx.options;
+  const inputOptions = ctx.options;
   const updatedOptions: Options = {
-    ...options,
+    ...inputOptions,
   };
-  if (options.sstJson) {
-    validateIfFileExists(ctx, 'sstJson', options.sstJson);
-    const sstJson = readJsonFile(ctx, options.sstJson);
+  if (inputOptions.sstJson) {
+    validateIfFileExists(ctx, 'sstJson', inputOptions.sstJson);
+    const sstJson = readJsonFile(ctx, inputOptions.sstJson);
     const appName = sstJson.name;
     if (typeof appName !== 'string') {
       ctx.log.error(`sst.json invalid, name property missing`);
     }
-    if (!options.cdkOut && fs.existsSync(`${path.dirname(options.sstJson)}/.build/cdk.out`)) {
-      updatedOptions.cdkOut = `${path.dirname(options.sstJson)}/.build/cdk.out`;
+    if (!inputOptions.sstApp) {
+      updatedOptions.sstApp = appName;
     }
-    if (!options.region && typeof sstJson.region === 'string') {
+    if (
+      !inputOptions.cdkOut &&
+      // If sst app is overridden then using a manifest build for a different app doesn't make too much sense
+      (!inputOptions.sstApp || inputOptions.sstApp === appName) &&
+      fs.existsSync(`${path.dirname(inputOptions.sstJson)}/.build/cdk.out`)
+    ) {
+      updatedOptions.cdkOut = `${path.dirname(inputOptions.sstJson)}/.build/cdk.out`;
+    }
+    if (!inputOptions.region && typeof sstJson.region === 'string') {
       updatedOptions.region = sstJson.region;
     }
-    if (!options.sstStage) {
-      const stageFile = `${path.dirname(options.sstJson)}/.sst/stage`;
+    if (!inputOptions.sstStage) {
+      const stageFile = `${path.dirname(inputOptions.sstJson)}/.sst/stage`;
       if (fs.existsSync(stageFile)) {
         updatedOptions.sstStage = fs.readFileSync(stageFile).toString('utf8').trim();
       } else {

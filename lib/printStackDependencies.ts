@@ -8,6 +8,24 @@ export function printStackDependencies(ctx: Context, stackDependencies: StackDep
     (currentMax, next) => Math.max(currentMax, stripPrefix(ctx, next.name).length),
     0
   );
+  const longestLineLength =
+    longestName +
+    3 +
+    stackDependencies.reduce(
+      (currentMax, next) =>
+        Math.max(
+          currentMax,
+          next.dependencyNames.map((name) => stripPrefix(ctx, name)).join(', ').length
+        ),
+      0
+    );
+  console.log(
+    chalk.underline.green(
+      `Stack dependencies${ctx.options.prefix ? ` for "${ctx.options.prefix}"` : ''}`
+    )
+  );
+  console.log(chalk.bold(`${'Stack'.padEnd(longestName + 1)}| Dependencies`));
+  console.log('-'.repeat(longestLineLength));
   stackDependencies.forEach((stackDependency) => {
     console.log(
       `${chalk.bold(
